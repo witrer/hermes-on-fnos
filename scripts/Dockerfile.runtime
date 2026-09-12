@@ -44,5 +44,5 @@ for path in sorted(p for p in root.rglob('*') if p.is_file()):
 PY
 
 RUN mkdir -p /out \
-    && tar -C /opt -czf /out/runtime.tgz \
+    && tar -C /opt -cf /out/runtime.tar \
       --transform='s,^hermes-runtime,runtime,' hermes-runtime
