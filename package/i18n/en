@@ -1,0 +1,9 @@
+[common]
+display_name="Hermes"
+desc="The Agent That Grows With You. Packaged for fnOS."
+changelog="Automated build from the latest stable Hermes Agent release."
+
+[uninstall]
+title="Uninstall Hermes"
+delete_data="Data"
+delete_data_confirm="Also delete Hermes configuration, sessions, memories, and workspace"

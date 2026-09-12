@@ -1,0 +1,197 @@
+#!/bin/bash
+
+seed_config_if_missing() {
+  if [ ! -f "${HERMES_HOME}/config.yaml" ]; then
+    cat >"${HERMES_HOME}/config.yaml" <<'EOF'
+{
+  "_managed_by": "trim.hermes",
+  "_schema_version": 1,
+  "model": {
+    "default": "",
+    "provider": "openrouter",
+    "base_url": "https://openrouter.ai/api/v1"
+  },
+  "toolsets": [
+    "hermes-cli"
+  ],
+  "platform_toolsets": {
+    "api_server": [
+      "hermes-api-server"
+    ]
+  },
+  "approvals": {
+    "mode": "manual"
+  },
+  "terminal": {
+    "backend": "local",
+    "cwd": "__WORKSPACE_ROOT__",
+    "persistent_shell": true
+  }
+}
+EOF
+    sed -i "s#__WORKSPACE_ROOT__#${WORKSPACE_ROOT}#g" "${HERMES_HOME}/config.yaml"
+  fi
+
+  if [ ! -f "${HERMES_HOME}/.env" ]; then
+    cat >"${HERMES_HOME}/.env" <<'EOF'
+# Managed by trim.hermes install callback.
+# Add provider secrets here during Hermes integration.
+API_SERVER_ENABLED=true
+API_SERVER_HOST=127.0.0.1
+API_SERVER_PORT=18642
+API_SERVER_CORS_ORIGINS=
+API_SERVER_MODEL_NAME=
+# OPENAI_API_KEY=
+# OPENROUTER_API_KEY=
+# ANTHROPIC_API_KEY=
+EOF
+  fi
+
+  if [ ! -f "${WORKSPACE_ROOT}/README.md" ]; then
+    cat >"${WORKSPACE_ROOT}/README.md" <<'EOF'
+# trim.hermes workspace
+
+This directory is reserved for future Hermes task workspaces and user-approved
+file operations inside fnOS.
+EOF
+  fi
+}
+
+validate_tar_entry_path() {
+  local entry="$1"
+  local normalized="${entry#./}"
+
+  if [ -z "${normalized}" ]; then
+    print_log "package" "runtime archive contains an empty path"
+    return 1
+  fi
+
+  case "${normalized}" in
+    /*|..|../*|*/..|*/../*)
+      print_log "package" "runtime archive contains unsafe path: ${entry}"
+      return 1
+      ;;
+  esac
+
+  case "${normalized}" in
+    runtime/.trim-hermes-runtime-ready)
+      print_log "package" "runtime archive must not provide readiness marker"
+      return 1
+      ;;
+    runtime|runtime/*)
+      return 0
+      ;;
+    *)
+      print_log "package" "runtime archive contains unexpected top-level path: ${entry}"
+      return 1
+      ;;
+  esac
+}
+
+validate_runtime_archive() {
+  local archive="$1"
+  local entry=""
+
+  while IFS= read -r entry; do
+    validate_tar_entry_path "${entry}" || return 1
+  done < <(tar -tzf "${archive}")
+}
+
+ensure_runtime_extracted() {
+  local archive="${APP_ROOT}/runtime.tgz"
+  local marker="${APP_ROOT}/runtime/.trim-hermes-runtime-ready"
+  local tmp_runtime="${APP_ROOT}/runtime.unpacking.$$"
+
+  if [ -x "${RUNTIME_ROOT}/python/bin/hermes" ]; then
+    if [ -f "${archive}" ]; then
+      rm -f "${archive}"
+    fi
+    return 0
+  fi
+
+  if [ ! -f "${archive}" ]; then
+    print_log "package" "missing runtime archive: ${archive}"
+    return 1
+  fi
+
+  print_log "package" "extracting runtime archive"
+  if ! validate_runtime_archive "${archive}"; then
+    print_log "package" "refusing unsafe runtime archive"
+    return 1
+  fi
+
+  rm -rf "${tmp_runtime}"
+  mkdir -p "${tmp_runtime}"
+  if ! tar --no-same-owner --no-same-permissions -xzf "${archive}" -C "${tmp_runtime}"; then
+    rm -rf "${tmp_runtime}"
+    print_log "package" "failed to extract runtime archive"
+    return 1
+  fi
+
+  if [ -L "${tmp_runtime}/runtime" ] || [ ! -d "${tmp_runtime}/runtime" ]; then
+    rm -rf "${tmp_runtime}"
+    print_log "package" "runtime archive did not extract to a real runtime directory"
+    return 1
+  fi
+
+  if [ -e "${marker}" ] || [ -L "${marker}" ]; then
+    rm -rf "${tmp_runtime}"
+    print_log "package" "runtime archive unexpectedly provided readiness marker"
+    return 1
+  fi
+
+  if [ ! -x "${tmp_runtime}/runtime/python/bin/hermes" ]; then
+    rm -rf "${tmp_runtime}"
+    print_log "package" "runtime archive does not contain runtime/python/bin/hermes"
+    return 1
+  fi
+
+  rm -rf "${RUNTIME_ROOT}"
+  mv "${tmp_runtime}/runtime" "${RUNTIME_ROOT}"
+  rm -rf "${tmp_runtime}"
+  touch "${marker}"
+  rm -f "${archive}"
+  print_log "package" "runtime extracted"
+}
+
+install_init() {
+  step_log "install_init"
+  exit 0
+}
+
+install_callback() {
+  step_log "install_callback"
+  check_dir
+  ensure_runtime_extracted || exit 1
+  seed_config_if_missing
+  exit 0
+}
+
+uninstall_init() {
+  step_log "uninstall_init"
+  exit 0
+}
+
+uninstall_callback() {
+  step_log "uninstall_callback"
+  if [ "${TRIM_APP_STATUS:-}" = "UNINSTALL" ] && [ "${wizard_delete_data:-}" = "true" ]; then
+    safe_remove_app_data_dir "${DATA_ROOT}" || exit 1
+    print_log "package" "app data cleared"
+  else
+    print_log "package" "app data preserved"
+  fi
+  exit 0
+}
+
+upgrade_init() {
+  step_log "upgrade_init"
+  exit 0
+}
+
+upgrade_callback() {
+  step_log "upgrade_callback"
+  check_dir
+  ensure_runtime_extracted || exit 1
+  seed_config_if_missing
+  exit 0
+}

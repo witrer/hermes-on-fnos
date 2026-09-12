@@ -1,0 +1,329 @@
+<!doctype html>
+<!-- Canonical adapter source: adapter/web/index.html -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes for fnOS</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <article class="panel hero-panel">
+        <div class="panel-body">
+          <div class="hero-top">
+            <span class="eyebrow">trim.hermes</span>
+            <div id="stage-badge" class="stage-badge neutral">状态读取中</div>
+          </div>
+          <h1>把 Hermes 变成 fnOS 里真正能落地的首启工作台</h1>
+          <p class="lead" id="stage-summary">
+            这个页面不再只是配置表单，而是围绕“先配模型、再启 runtime、最后进入对话”的引导式控制台。
+          </p>
+
+          <div class="cta-row">
+            <button class="btn-brand" id="hero-primary">保存配置</button>
+          </div>
+
+          <div class="hero-tabs" role="tablist" aria-label="Hermes workspace tabs">
+            <button class="tab-chip" id="tab-button-chat" data-workspace-tab="chat" role="tab" aria-selected="false">对话</button>
+            <button class="tab-chip" id="tab-button-ops" data-workspace-tab="ops" role="tab" aria-selected="false">状态</button>
+            <button class="tab-chip active" id="tab-button-setup" data-workspace-tab="setup" role="tab" aria-selected="true">配置</button>
+            <button class="tab-chip" id="tab-button-platforms" data-workspace-tab="platforms" role="tab" aria-selected="false">聊天 App</button>
+          </div>
+
+          <div class="hero-grid">
+            <div class="chip">
+              <strong>当前阶段</strong>
+              <span id="hero-stage-copy">正在读取配置与运行时状态。</span>
+            </div>
+            <div class="chip">
+              <strong>下一步</strong>
+              <span id="hero-next-step">确认供应商、默认模型和 runtime 可执行命令。</span>
+            </div>
+            <div class="chip">
+              <strong>Runtime 命令</strong>
+              <span class="mono" id="hero-runtime-command">检测中...</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-body stack">
+          <div class="section-head compact">
+            <div>
+              <div class="section-kicker">Launch Checklist</div>
+              <h2 class="section-title">首轮启动清单</h2>
+            </div>
+            <div id="runtime-pill" class="status-pill neutral">检测中...</div>
+          </div>
+          <div id="checklist" class="checklist"></div>
+          <div class="status-card">
+            <h2>路径信息</h2>
+            <ul class="meta-list">
+              <li><span>Hermes Home</span><strong class="mono" id="path-home">-</strong></li>
+              <li><span>Workspace</span><strong class="mono" id="path-workspace">-</strong></li>
+              <li><span>Config</span><strong class="mono" id="path-config">-</strong></li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="tab-panel active" id="tab-panel-setup" data-tab-panel="setup" role="tabpanel" aria-labelledby="tab-button-setup">
+      <div class="setup-layout">
+        <article class="panel">
+          <div class="panel-body">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker">Setup Studio</div>
+                <h2 class="section-title">模型与运行时设置</h2>
+              </div>
+              <div class="hint" id="provider-meta">读取供应商信息中...</div>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="provider">供应商</label>
+                <select id="provider">
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="zai">GLM / Z.ai</option>
+                  <option value="kimi-coding">Kimi / Moonshot</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="ollama">Ollama</option>
+                  <option value="lmstudio">LM Studio</option>
+                  <option value="custom">Custom OpenAI-Compatible</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="approvals-mode">危险命令审批</label>
+                <select id="approvals-mode">
+                  <option value="manual">手动审批</option>
+                  <option value="smart">智能审批</option>
+                  <option value="off">关闭审批</option>
+                </select>
+              </div>
+              <div class="field field-span-2">
+                <label for="base-url">Base URL</label>
+                <input id="base-url" placeholder="留空则使用供应商默认值">
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:14px">
+              <label for="api-key">API Key</label>
+              <input id="api-key" type="password" placeholder="可留空；如果已有配置则不会在页面回显">
+              <div class="hint" id="api-key-hint">当前供应商密钥状态待检测。</div>
+            </div>
+            <div class="field" style="margin-top:14px">
+              <label for="model">默认模型</label>
+              <input id="model" placeholder="可手动填写，或在右侧查看可选模型后自动回填">
+            </div>
+            <div class="hint" id="config-health" style="margin-top:10px">配置状态读取中...</div>
+
+            <div class="actions">
+              <button class="btn-brand" id="save-config">保存配置</button>
+              <button class="btn-ghost" id="reload-config">重新读取</button>
+            </div>
+
+            <div class="runtime-actions">
+              <button class="btn-brand" id="start-runtime">启动 Hermes</button>
+              <button class="btn-ghost" id="restart-runtime">重启 Hermes</button>
+              <button class="btn-danger" id="stop-runtime">停止 Hermes</button>
+            </div>
+
+            <p class="footer-note" id="setup-message">
+              首版控制层会优先寻找打包后的 `hermes` 可执行文件；如果包内暂未带 Hermes runtime，
+              页面会明确提示当前缺少的命令路径。
+            </p>
+          </div>
+        </article>
+
+        <aside class="panel model-panel">
+          <div class="panel-body stack">
+            <div class="section-head compact">
+              <div>
+                <div class="section-kicker">Default Model</div>
+                <h2 class="section-title">默认模型选择</h2>
+              </div>
+              <div class="hint" id="model-picker-hint">前置配置完成后，点击“查看可选模型”再展开列表与筛选。</div>
+            </div>
+            <button type="button" class="model-picker-toggle" id="model-picker-toggle" aria-expanded="false">
+              <span class="model-picker-toggle-label">查看可选模型</span>
+              <strong class="mono" id="model-picker-toggle-value">先完成前置配置</strong>
+            </button>
+            <div id="model-picker-panel" class="model-picker-panel" hidden>
+              <div class="field model-search-field">
+                <label for="model-search">搜索模型</label>
+                <input id="model-search" type="search" placeholder="按模型名筛选，例如 gpt-5 / mini / codex">
+              </div>
+              <div id="model-picker" class="model-picker" role="listbox" aria-label="模型筛选结果"></div>
+            </div>
+            <div class="hint" id="custom-model-note">右侧选中模型后，会自动回填到左侧“默认模型”，然后再点击“保存配置”。</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="tab-panel-platforms" data-tab-panel="platforms" role="tabpanel" aria-labelledby="tab-button-platforms" hidden>
+      <div class="setup-layout">
+        <article class="panel">
+          <div class="panel-body stack">
+            <div class="section-head compact">
+              <div>
+                <div class="section-kicker">Chat Apps</div>
+                <h2 class="section-title">聊天 App 接入配置</h2>
+              </div>
+              <div class="hint" id="platforms-overview-hint">为 Hermes 配置外部聊天平台接入、测试连接并保存。</div>
+            </div>
+            <div id="platform-cards" class="platform-card-list"></div>
+          </div>
+        </article>
+
+        <aside class="panel">
+          <div class="panel-body stack">
+            <div class="section-head">
+              <div>
+                <div class="section-kicker" id="platform-active-kicker">Platform Editor</div>
+                <h2 class="section-title" id="platform-active-title">选择一个平台</h2>
+              </div>
+              <div class="hint" id="platform-active-status">读取中...</div>
+            </div>
+
+            <div class="hint" id="platform-active-hint">左侧选择平台后，在这里填写参数并测试连接。</div>
+            <form id="platform-config-form" class="stack"></form>
+
+            <div class="hint" id="platform-config-state">平台配置状态读取中...</div>
+
+            <div class="actions">
+              <button class="btn-ghost" id="test-platform">测试连接</button>
+              <button class="btn-brand" id="save-platform">保存平台配置</button>
+              <button class="btn-ghost" id="save-restart-platform">保存并重启 Hermes</button>
+            </div>
+
+            <div class="status-card">
+              <h2>连接测试</h2>
+              <div class="hint" id="platform-test-result">尚未执行平台连接测试。</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="tab-panel-chat" data-tab-panel="chat" role="tabpanel" aria-labelledby="tab-button-chat" hidden>
+      <article class="panel chat-panel">
+        <div class="panel-body chat-shell">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Chat Workspace</div>
+              <h2 class="section-title">基础聊天入口</h2>
+              <div class="hint">先验证模型、会话和 api_server 链路，后续再扩展成完整工作区与 Web Terminal。</div>
+            </div>
+            <div class="session-box">
+              <div class="session-pill mono" id="session-pill">session: -</div>
+              <div class="actions compact-actions">
+                <button class="btn-ghost" id="reset-session">新会话</button>
+                <button class="btn-ghost" id="clear-chat">清空视图</button>
+              </div>
+            </div>
+          </div>
+
+          <section id="messages" class="messages"></section>
+
+          <div class="field" style="margin-top:14px">
+            <label for="chat-input">对 Hermes 说点什么</label>
+            <textarea id="chat-input" placeholder="输入你的问题、任务或操作请求。"></textarea>
+            <div class="hint">Enter 发送，Shift+Enter 换行。</div>
+            <div class="actions">
+              <button class="btn-brand" id="send-chat">发送</button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="tab-panel" id="tab-panel-ops" data-tab-panel="ops" role="tabpanel" aria-labelledby="tab-button-ops" hidden>
+      <section class="dashboard-grid">
+        <article class="panel">
+          <div class="panel-body stack">
+            <div class="section-head compact">
+              <div>
+                <div class="section-kicker">Ops Cards</div>
+                <h2 class="section-title">平台信息卡</h2>
+              </div>
+              <div class="hint">把启动、模型和工作目录放到同一屏里看。</div>
+            </div>
+
+            <div class="platform-grid">
+              <section class="mini-card">
+                <h3>服务状态</h3>
+                <ul class="status-list">
+                  <li><span>控制层</span><strong id="control-status">-</strong></li>
+                  <li><span>Hermes Runtime</span><strong id="gateway-status">-</strong></li>
+                  <li><span>API Server</span><strong id="api-status">-</strong></li>
+                  <li><span>默认模型</span><strong id="model-status">-</strong></li>
+                </ul>
+              </section>
+
+              <section class="mini-card">
+                <h3>命令解析</h3>
+                <div class="hint mono" id="runtime-command">检测中...</div>
+                <div class="tag-list" id="runtime-candidates"></div>
+              </section>
+
+              <section class="mini-card">
+                <h3>模型目录与测试</h3>
+                <div class="tag-list" id="model-catalog"></div>
+                <div class="hint" id="model-config-test-status">尚未测试模型配置。</div>
+                <div class="actions compact-actions" style="margin-top:10px">
+                  <button class="btn-ghost" id="test-model-config">测试模型配置</button>
+                </div>
+              </section>
+
+              <section class="mini-card">
+                <h3>工作区与日志</h3>
+                <div class="hint" id="workspace-summary">读取中...</div>
+                <div class="hint mono" id="log-summary">读取中...</div>
+              </section>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-body stack">
+            <section>
+              <h2 class="section-title">控制层日志</h2>
+              <pre class="log-frame" id="control-log">loading...</pre>
+            </section>
+            <section>
+              <h2 class="section-title">Hermes Gateway 日志</h2>
+              <pre class="log-frame" id="gateway-log">loading...</pre>
+            </section>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-body stack">
+            <section>
+              <h2 class="section-title">运行时快照</h2>
+              <pre class="json-frame" id="status-json">loading...</pre>
+            </section>
+            <section>
+              <h2 class="section-title">接下来建议</h2>
+              <div class="hint">
+                1. 把打包后的 Hermes runtime 放进 `app/runtime/python/`。<br>
+                2. 用这个页面完成供应商与默认模型配置。<br>
+                3. 启动 Hermes，确认 `api_server` 健康。<br>
+                4. 再接入更完整的 Web Chat、渠道接入和 Web Terminal。
+              </div>
+            </section>
+          </div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

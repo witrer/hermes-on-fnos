@@ -1,0 +1,46 @@
+FROM python:3.11-slim-bookworm
+
+ARG HERMES_REF
+ARG NODE_VERSION=22.22.3
+ARG HERMES_EXTRAS=web,cron,cli,pty,mcp,acp,messaging,feishu,dingtalk
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential ca-certificates curl git libffi-dev libssl-dev xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --no-cache-dir --upgrade pip wheel setuptools \
+    && python -m pip install --no-cache-dir \
+      "hermes-agent[${HERMES_EXTRAS}] @ git+https://github.com/NousResearch/hermes-agent.git@${HERMES_REF}"
+
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in arm64) node_arch=arm64 ;; *) exit 1 ;; esac; \
+    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz"; \
+    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"; \
+    grep " node-v${NODE_VERSION}-linux-${node_arch}.tar.xz$" SHASUMS256.txt | sha256sum -c -; \
+    mkdir -p /opt/hermes-runtime/python/node; \
+    tar -xJf "node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" --strip-components=1 -C /opt/hermes-runtime/python/node; \
+    rm -f "node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" SHASUMS256.txt
+
+RUN set -eux; \
+    cp -a /usr/local/. /opt/hermes-runtime/python/; \
+    mkdir -p /opt/hermes-runtime/python/system-libs /opt/hermes-runtime/python/src; \
+    find /usr/lib /lib -type f \( -name 'libssl.so.*' -o -name 'libcrypto.so.*' -o -name 'libffi.so.*' -o -name 'libsqlite3.so.*' -o -name 'libbz2.so.*' -o -name 'liblzma.so.*' -o -name 'libreadline.so.*' -o -name 'libncursesw.so.*' -o -name 'libtinfo.so.*' -o -name 'libuuid.so.*' -o -name 'libcrypt.so.*' -o -name 'libstdc++.so.*' -o -name 'libgcc_s.so.*' \) -exec cp -L --no-clobber {} /opt/hermes-runtime/python/system-libs/ \;; \
+    mv /opt/hermes-runtime/python/bin/python3.11 /opt/hermes-runtime/python/bin/python3.11.real; \
+    printf '%s\n' '#!/bin/sh' 'SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' 'export LD_LIBRARY_PATH="$SELF_DIR/../lib:$SELF_DIR/../system-libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' 'exec "$SELF_DIR/python3.11.real" "$@"' > /opt/hermes-runtime/python/bin/python3.11; \
+    chmod 0755 /opt/hermes-runtime/python/bin/python3.11; \
+    ln -sfn python3.11 /opt/hermes-runtime/python/bin/python3; \
+    printf '%s\n' '#!/bin/sh' 'SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' 'if [ "${1:-}" = update ]; then echo "This Hermes installation is managed by fnOS. Update it from fnOS App Center." >&2; exit 64; fi' 'exec "$SELF_DIR/python3" -m hermes_cli.main "$@"' > /opt/hermes-runtime/python/bin/hermes; \
+    chmod 0755 /opt/hermes-runtime/python/bin/hermes; \
+    printf '%s\n' "${HERMES_REF}" > /opt/hermes-runtime/UPSTREAM_REF
+
+RUN HERMES_BUILD_REF="$HERMES_REF" HERMES_NODE_VERSION="$NODE_VERSION" python - <<'PY'
+import hashlib, json, pathlib
+import os
+root = pathlib.Path('/opt/hermes-runtime')
+files = []
+for path in sorted(p for p in root.rglob('*') if p.is_file()):
+    files.append({'path': str(path.relative_to(root)), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'size': path.stat().st_size})
+(root / 'BUILD-INFO.json').write_text(json.dumps({'ref': os.environ['HERMES_BUILD_REF'], 'node_version': 'v' + os.environ['HERMES_NODE_VERSION'], 'platform': 'linux/arm64', 'files': len(files)}, indent=2) + '\n')
+PY
+
+RUN mkdir -p /out/runtime && cp -a /opt/hermes-runtime/. /out/runtime/

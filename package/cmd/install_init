@@ -1,0 +1,13 @@
+#!/bin/bash
+
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${BASE_DIR}/config"
+. "${BASE_DIR}/common"
+. "${BASE_DIR}/package"
+
+ACTION="$(basename "$0")"
+if [ -n "${TRIM_TEMP_LOGFILE}" ]; then
+  "${ACTION}" >"${TRIM_TEMP_LOGFILE}" 2>&1
+else
+  "${ACTION}"
+fi

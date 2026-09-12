@@ -1,0 +1,9 @@
+[common]
+display_name="Hermes"
+desc="会与你一起成长的智能体，适配飞牛 fnOS。"
+changelog="基于 Hermes Agent 最新稳定版本自动构建。"
+
+[uninstall]
+title="卸载 Hermes"
+delete_data="数据"
+delete_data_confirm="同时删除 Hermes 配置、会话、记忆与工作区"

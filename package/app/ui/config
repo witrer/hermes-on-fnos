@@ -1,0 +1,15 @@
+{
+  ".url": {
+    "trim.hermes": {
+      "title": "Hermes",
+      "desc": "The Agent That Grows With You.",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "http",
+      "gatewaySocket": "run/trim-hermes.sock",
+      "gatewayPrefix": "/app/trim-hermes",
+      "url": "/app/trim-hermes/",
+      "allUsers": false
+    }
+  }
+}

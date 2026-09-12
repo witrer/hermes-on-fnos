@@ -1,0 +1,79 @@
+#!/bin/bash
+
+print_log() {
+  if [ -n "${SVC_QUIET}" ]; then
+    return 0
+  fi
+
+  local scope=""
+  local message=""
+  if [ "$#" -ge 2 ]; then
+    scope="$1"
+    shift
+    message="$*"
+  else
+    message="$*"
+  fi
+
+  if [ -n "${scope}" ]; then
+    echo "$(date +'%Y/%m/%d %H:%M:%S')	[${scope}] ${message}" 1>&2
+  else
+    echo "$(date +'%Y/%m/%d %H:%M:%S')	${message}" 1>&2
+  fi
+}
+
+step_log() {
+  print_log "package" "step=$1 app=${TRIM_APPNAME} status=${TRIM_APP_STATUS} run_as=${TRIM_RUN_USERNAME}:${TRIM_RUN_GROUPNAME}"
+}
+
+ensure_dir() {
+  local dir="$1"
+  if [ -n "${dir}" ] && [ ! -d "${dir}" ]; then
+    mkdir -p "${dir}"
+  fi
+}
+
+check_dir() {
+  ensure_dir "${RUN_ROOT}"
+  ensure_dir "${DATA_ROOT}"
+  ensure_dir "${HOME}"
+  ensure_dir "${HERMES_HOME}"
+  ensure_dir "${HERMES_HOME}/logs"
+  ensure_dir "${HERMES_HOME}/sessions"
+  ensure_dir "${HERMES_HOME}/memories"
+  ensure_dir "${HERMES_HOME}/cron"
+  ensure_dir "${WORKSPACE_ROOT}"
+  ensure_dir "${STATE_ROOT}"
+  ensure_dir "${UPLOAD_ROOT}"
+}
+
+safe_remove_app_data_dir() {
+  local dir="$1"
+  local real_dir=""
+
+  if [ -z "${dir}" ] || [ "${dir}" = "/" ]; then
+    print_log "package" "refuse to clear unsafe empty/root data dir: ${dir}"
+    return 1
+  fi
+
+  if [ "$(basename "${dir}")" != "${TRIM_APPNAME}" ]; then
+    print_log "package" "refuse to clear data dir with unexpected basename: ${dir}"
+    return 1
+  fi
+
+  real_dir="$(realpath -m "${dir}" 2>/dev/null || true)"
+  case "${real_dir}" in
+    /vol[0-9]*/@appdata/"${TRIM_APPNAME}"|/vol[0-9]*/@appmeta/"${TRIM_APPNAME}")
+      ;;
+    *)
+      print_log "package" "refuse to clear non-appcenter data dir: ${real_dir}"
+      return 1
+      ;;
+  esac
+
+  if [ -d "${dir}" ]; then
+    print_log "package" "clearing app data directory contents: ${real_dir}"
+    find "${dir}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || return 1
+  fi
+  return 0
+}

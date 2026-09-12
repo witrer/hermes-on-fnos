@@ -1,0 +1,65 @@
+name: Build latest Hermes for fnOS
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: Optional immutable Hermes release tag
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hermes-fnos-release
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.release.outputs.ref }}
+      exists: ${{ steps.release.outputs.exists }}
+    steps:
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_REF: ${{ inputs.upstream_ref }}
+        run: |
+          set -euo pipefail
+          ref="$REQUESTED_REF"
+          if [[ -z "$ref" ]]; then ref="$(gh api repos/NousResearch/hermes-agent/releases/latest --jq .tag_name)"; fi
+          [[ "$ref" =~ ^v[0-9]{4}\.[0-9]+\.[0-9]+([.-][0-9]+)?$ ]]
+          if gh release view "fnos-$ref" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exists=true; else exists=false; fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.exists != 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and verify FPK
+        run: ./scripts/build.sh "${{ needs.resolve.outputs.ref }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hermes-fnos-${{ needs.resolve.outputs.ref }}
+          path: dist/*
+          if-no-files-found: error
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ needs.resolve.outputs.ref }}
+        run: |
+          set -euo pipefail
+          gh release create "fnos-$REF" dist/* \
+            --title "Hermes on fnOS $REF" \
+            --notes "Automated arm64 fnOS build of NousResearch/hermes-agent $REF. Install the .fpk through fnOS App Center."

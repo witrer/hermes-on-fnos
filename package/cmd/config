@@ -1,0 +1,37 @@
+#!/bin/bash
+
+FWPORTS_FILE="${TRIM_PKGETC}/${TRIM_APPNAME}.sc"
+DASHBOARD_PORT="${TRIM_HERMES_DASHBOARD_PORT:-19119}"
+GATEWAY_SOCKET="${TRIM_APPDEST}/run/trim-hermes.sock"
+
+APP_ROOT="${TRIM_APPDEST}"
+DATA_ROOT="${TRIM_PKGVAR}"
+RUNTIME_ROOT="${APP_ROOT}/runtime"
+RUN_ROOT="${APP_ROOT}/run"
+WORKSPACE_ROOT="${DATA_ROOT}/workspace"
+STATE_ROOT="${DATA_ROOT}/state"
+UPLOAD_ROOT="${DATA_ROOT}/uploads"
+WRAPPER_BIN="${APP_ROOT}/wrapper/trim-hermes-wrapper"
+
+export HOME="${DATA_ROOT}/home"
+export HERMES_HOME="${DATA_ROOT}/hermes"
+export HERMES_WRITE_SAFE_ROOT="${WORKSPACE_ROOT}"
+export TRIM_HERMES_DATA_ROOT="${DATA_ROOT}"
+export PATH="${RUNTIME_ROOT}/python/bin:${RUNTIME_ROOT}/python/node/bin:${HERMES_HOME}/node/bin:${PATH}"
+
+SERVER_SCRIPT="${WRAPPER_BIN}"
+LOG_FILE="${DATA_ROOT}/${TRIM_APPNAME}.log"
+PID_FILE="${DATA_ROOT}/${TRIM_APPNAME}.pid"
+SVC_CWD="${DATA_ROOT}"
+SVC_BACKGROUND=y
+SVC_WRITE_PID=y
+SVC_QUIET=
+
+CMD=(
+  "${WRAPPER_BIN}"
+  "--socket" "${GATEWAY_SOCKET}"
+  "--dashboard-host" "127.0.0.1"
+  "--dashboard-port" "${DASHBOARD_PORT}"
+  "--app-root" "${APP_ROOT}"
+  "--data-root" "${DATA_ROOT}"
+)

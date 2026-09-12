@@ -1,0 +1,18 @@
+[
+  {
+    "step_title": "${uninstall.title}",
+    "items": [
+      {
+        "type": "checkbox",
+        "desc": "${uninstall.delete_data}",
+        "subitems": [
+          {
+            "key": "wizard_delete_data",
+            "desc": "${uninstall.delete_data_confirm}",
+            "defaultValue": false
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,5 @@
+dist/
+build/
+.latest-upstream
+*.fpk
+*.sha256

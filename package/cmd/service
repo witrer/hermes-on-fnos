@@ -1,0 +1,181 @@
+#!/bin/bash
+
+is_pid_running() {
+  local pid="$1"
+  [ -n "${pid}" ] && ps -p "${pid}" >/dev/null 2>&1
+}
+
+cleanup_pid_file() {
+  if [ -f "${PID_FILE}" ]; then
+    rm -f "${PID_FILE}"
+  fi
+}
+
+process_cmdline() {
+  local pid="$1"
+  tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null || true
+}
+
+is_managed_runtime_pid() {
+  local pid="$1"
+  local cmdline=""
+
+  [ -n "${pid}" ] || return 1
+  [ "${pid}" != "$$" ] || return 1
+  [ -r "/proc/${pid}/cmdline" ] || return 1
+  cmdline="$(process_cmdline "${pid}")"
+  [ -n "${cmdline}" ] || return 1
+
+  case "${cmdline}" in
+    *"${RUNTIME_ROOT}/python/bin/"*hermes*|*"${RUNTIME_ROOT}/python/bin/"*hermes_cli.main*|*"${RUNTIME_ROOT}/python/bin/"*run_agent*|*"${RUNTIME_ROOT}/python/node/bin/"*|*tui_dist*)
+      return 0
+      ;;
+    *"${HERMES_HOME}"*hermes*|*"${HERMES_HOME}"*hermes_cli.main*|*"${HERMES_HOME}"*run_agent*|*"${HERMES_HOME}"*tui_dist*)
+      return 0
+      ;;
+  esac
+
+  if [ -r "/proc/${pid}/environ" ] \
+    && printf '%s' "${cmdline}" | grep -Eq 'hermes|hermes_cli\.main|run_agent|tui_dist' \
+    && tr '\0' '\n' <"/proc/${pid}/environ" 2>/dev/null | grep -Eq "^HERMES_HOME=${HERMES_HOME}$|^TRIM_HERMES_DATA_ROOT=${DATA_ROOT}$"; then
+    return 0
+  fi
+
+  return 1
+}
+
+managed_runtime_pids() {
+  local proc=""
+  local pid=""
+  for proc in /proc/[0-9]*; do
+    [ -d "${proc}" ] || continue
+    pid="${proc##*/}"
+    if is_managed_runtime_pid "${pid}"; then
+      printf '%s\n' "${pid}"
+    fi
+  done
+}
+
+kill_managed_runtime_processes() {
+  local signal="$1"
+  local pids=""
+  local pid=""
+  pids="$(managed_runtime_pids | sort -n | uniq || true)"
+  [ -n "${pids}" ] || return 0
+
+  print_log "service" "stopping managed Hermes runtime pids: $(printf '%s' "${pids}" | tr '\n' ' ')"
+  for pid in ${pids}; do
+    kill "-${signal}" "-${pid}" >/dev/null 2>&1 || true
+    kill "-${signal}" "${pid}" >/dev/null 2>&1 || true
+  done
+}
+
+wait_for_managed_runtime_processes_stopped() {
+  local timeout="$1"
+  local i=""
+  for i in $(seq 1 "${timeout}"); do
+    if [ -z "$(managed_runtime_pids)" ]; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+cleanup_managed_runtime_processes() {
+  kill_managed_runtime_processes TERM
+  if ! wait_for_managed_runtime_processes_stopped 10; then
+    kill_managed_runtime_processes KILL
+    wait_for_managed_runtime_processes_stopped 3 || true
+  fi
+}
+
+find_process_by_command() {
+  local match
+  match="$(pgrep -f "${SERVER_SCRIPT}" | head -n 1)"
+  if [ -n "${match}" ] && is_pid_running "${match}"; then
+    pid="${match}"
+    return 0
+  fi
+  return 1
+}
+
+status_daemon() {
+  if [ -r "${PID_FILE}" ]; then
+    pid="$(cat "${PID_FILE}")"
+    if is_pid_running "${pid}"; then
+      return 0
+    fi
+    cleanup_pid_file
+  fi
+
+  if find_process_by_command; then
+    printf "%s" "${pid}" >"${PID_FILE}"
+    return 0
+  fi
+
+  return 3
+}
+
+start_daemon() {
+  check_dir
+
+  if [ ! -x "${WRAPPER_BIN}" ]; then
+    print_log "service" "missing wrapper binary: ${WRAPPER_BIN}"
+    return 1
+  fi
+
+  cd "${SVC_CWD}" || return 1
+  rm -f "${GATEWAY_SOCKET}" >/dev/null 2>&1 || true
+  "${CMD[@]}" >>"${LOG_FILE}" 2>&1 &
+  pid=$!
+  if [ -n "${SVC_WRITE_PID}" ]; then
+    printf "%s" "${pid}" >"${PID_FILE}"
+  fi
+
+  sleep 2
+  if is_pid_running "${pid}"; then
+    print_log "service" "service started pid=${pid} socket=${GATEWAY_SOCKET}"
+    return 0
+  fi
+
+  print_log "service" "service exited unexpectedly; inspect ${LOG_FILE}"
+  cleanup_pid_file
+  return 1
+}
+
+stop_daemon() {
+  if ! status_daemon >/dev/null 2>&1; then
+    rm -f "${GATEWAY_SOCKET}" >/dev/null 2>&1 || true
+    cleanup_managed_runtime_processes
+    print_log "service" "service already stopped"
+    return 0
+  fi
+
+  kill "${pid}" >/dev/null 2>&1 || true
+
+  local i
+  for i in $(seq 1 20); do
+    if ! is_pid_running "${pid}"; then
+      cleanup_pid_file
+      rm -f "${GATEWAY_SOCKET}" >/dev/null 2>&1 || true
+      cleanup_managed_runtime_processes
+      print_log "service" "service stopped"
+      return 0
+    fi
+    sleep 1
+  done
+
+  kill -9 "${pid}" >/dev/null 2>&1 || true
+  rm -f "${GATEWAY_SOCKET}" >/dev/null 2>&1 || true
+  sleep 1
+  if ! is_pid_running "${pid}"; then
+    cleanup_pid_file
+    cleanup_managed_runtime_processes
+    print_log "service" "service stopped with SIGKILL"
+    return 0
+  fi
+
+  print_log "service" "failed to stop pid=${pid}"
+  return 1
+}

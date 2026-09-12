@@ -1,0 +1,39 @@
+#!/bin/bash
+
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "${BASE_DIR}/config"
+. "${BASE_DIR}/common"
+. "${BASE_DIR}/service"
+
+case "$1" in
+  start)
+    if status_daemon >/dev/null 2>&1; then
+      print_log "main" "${TRIM_APPNAME} is already running"
+      exit 0
+    fi
+    print_log "main" "starting ${TRIM_APPNAME}"
+    start_daemon
+    exit $?
+    ;;
+  stop)
+    if status_daemon >/dev/null 2>&1; then
+      print_log "main" "stopping ${TRIM_APPNAME}"
+      stop_daemon
+      exit $?
+    fi
+    print_log "main" "${TRIM_APPNAME} is not running"
+    exit 0
+    ;;
+  status)
+    if status_daemon >/dev/null 2>&1; then
+      echo "$(date) S 0"
+      exit 0
+    fi
+    echo "$(date) S 3"
+    exit 3
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status}" >&2
+    exit 1
+    ;;
+esac
