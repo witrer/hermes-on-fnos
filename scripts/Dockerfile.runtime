@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir --upgrade pip wheel setuptools \
-    && python -m pip install --no-cache-dir \
+    && HERMES_NIX_BUILD=1 python -m pip install --no-cache-dir \
       "hermes-agent[${HERMES_EXTRAS}] @ git+https://github.com/NousResearch/hermes-agent.git@${HERMES_REF}"
 
 RUN set -eux; \
