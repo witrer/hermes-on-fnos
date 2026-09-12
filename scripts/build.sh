@@ -17,9 +17,13 @@ mkdir -p "$BUILD/runtime-export" "$BUILD/staging/app" "$DIST"
 docker buildx build --platform linux/arm64 \
   --build-arg "HERMES_REF=$REF" \
   --file "$ROOT/scripts/Dockerfile.runtime" \
+  --cache-from type=gha,scope=hermes-runtime-arm64 \
+  --cache-to type=gha,scope=hermes-runtime-arm64,mode=max \
+  --progress plain \
   --output "type=local,dest=$BUILD/runtime-export" "$ROOT"
 
-tar -C "$BUILD/runtime-export" -czf "$BUILD/staging/app/runtime.tgz" runtime
+test -s "$BUILD/runtime-export/runtime.tgz"
+cp "$BUILD/runtime-export/runtime.tgz" "$BUILD/staging/app/runtime.tgz"
 cp -a "$ROOT/package/app/wrapper" "$ROOT/package/app/server" "$ROOT/package/app/web" "$ROOT/package/app/ui" "$BUILD/staging/app/"
 tar -C "$BUILD/staging/app" -czf "$BUILD/app.tgz" .
 APP_MD5="$(md5sum "$BUILD/app.tgz" | awk '{print $1}')"

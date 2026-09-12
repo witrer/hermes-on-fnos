@@ -43,4 +43,6 @@ for path in sorted(p for p in root.rglob('*') if p.is_file()):
 (root / 'BUILD-INFO.json').write_text(json.dumps({'ref': os.environ['HERMES_BUILD_REF'], 'node_version': 'v' + os.environ['HERMES_NODE_VERSION'], 'platform': 'linux/arm64', 'files': len(files)}, indent=2) + '\n')
 PY
 
-RUN mkdir -p /out/runtime && cp -a /opt/hermes-runtime/. /out/runtime/
+RUN mkdir -p /out \
+    && tar -C /opt -czf /out/runtime.tgz \
+      --transform='s,^hermes-runtime,runtime,' hermes-runtime

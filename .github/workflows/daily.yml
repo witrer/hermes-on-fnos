@@ -41,6 +41,7 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.exists != 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
