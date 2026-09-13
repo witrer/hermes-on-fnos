@@ -5,6 +5,29 @@ is_pid_running() {
   [ -n "${pid}" ] && ps -p "${pid}" >/dev/null 2>&1
 }
 
+export_gateway_proxy_env() {
+  local env_file="${HERMES_HOME}/.env"
+  local key=""
+  local value=""
+
+  [ -r "${env_file}" ] || return 0
+  while IFS='=' read -r key value; do
+    case "${key}" in
+      TELEGRAM_PROXY|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)
+        export "${key}=${value}"
+        ;;
+    esac
+  done <"${env_file}"
+}
+
+start_gateway_runtime() {
+  export_gateway_proxy_env
+  "${RUNTIME_ROOT}/python/bin/hermes" gateway run --replace --external-supervisor \
+    >>"${HERMES_HOME}/logs/fnos-gateway.log" 2>&1 </dev/null &
+  printf '%s' "$!" >"${STATE_ROOT}/gateway.pid"
+  print_log "service" "Hermes gateway started pid=$!"
+}
+
 cleanup_pid_file() {
   if [ -f "${PID_FILE}" ]; then
     rm -f "${PID_FILE}"
@@ -135,6 +158,7 @@ start_daemon() {
 
   sleep 2
   if is_pid_running "${pid}"; then
+    start_gateway_runtime
     print_log "service" "service started pid=${pid} socket=${GATEWAY_SOCKET}"
     return 0
   fi
