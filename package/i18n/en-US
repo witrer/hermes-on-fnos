@@ -5,5 +5,5 @@ changelog="Automated build from the latest stable Hermes Agent release."
 
 [uninstall]
 title="Uninstall Hermes"
-delete_data="Data"
+delete_data="Delete application data"
 delete_data_confirm="Also delete Hermes configuration, sessions, memories, and workspace"

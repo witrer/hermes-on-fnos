@@ -33,7 +33,7 @@ jobs:
           ref="$REQUESTED_REF"
           if [[ -z "$ref" ]]; then ref="$(gh api repos/NousResearch/hermes-agent/releases/latest --jq .tag_name)"; fi
           [[ "$ref" =~ ^v[0-9]{4}\.[0-9]+\.[0-9]+([.-][0-9]+)?$ ]]
-          if gh release view "fnos-$ref" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exists=true; else exists=false; fi
+          if gh release view "fnos-$ref-r2" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exists=true; else exists=false; fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "exists=$exists" >> "$GITHUB_OUTPUT"
 
@@ -61,6 +61,6 @@ jobs:
           REF: ${{ needs.resolve.outputs.ref }}
         run: |
           set -euo pipefail
-          gh release create "fnos-$REF" dist/* \
+          gh release create "fnos-$REF-r2" dist/* \
             --title "Hermes on fnOS $REF" \
             --notes "Automated arm64 fnOS build of NousResearch/hermes-agent $REF. Install the .fpk through fnOS App Center."

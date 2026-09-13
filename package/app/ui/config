@@ -1,6 +1,6 @@
 {
   ".url": {
-    "trim.hermes": {
+    "trim.hermes.Application": {
       "title": "Hermes",
       "desc": "The Agent That Grows With You.",
       "icon": "images/icon_{0}.png",
