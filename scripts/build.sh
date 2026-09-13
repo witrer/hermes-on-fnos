@@ -14,16 +14,24 @@ DIST="$ROOT/dist"
 rm -rf "$BUILD" "$DIST"
 mkdir -p "$BUILD/runtime-export" "$BUILD/staging/app" "$DIST"
 
+IMAGE_TAG="hermes-fnos-runtime:${VERSION//[^0-9A-Za-z_.-]/-}"
+
 docker buildx build --platform linux/arm64 \
   --build-arg "HERMES_REF=$REF" \
   --file "$ROOT/scripts/Dockerfile.runtime" \
   --cache-from type=gha,scope=hermes-runtime-arm64 \
   --cache-to type=gha,scope=hermes-runtime-arm64,mode=max \
   --progress plain \
-  --output "type=local,dest=$BUILD/runtime-export" "$ROOT"
+  --load --tag "$IMAGE_TAG" "$ROOT"
 
+container_id="$(docker create --platform linux/arm64 "$IMAGE_TAG")"
+cleanup_container() { docker rm -f "$container_id" >/dev/null 2>&1 || true; }
+trap cleanup_container EXIT
+docker cp "$container_id:/out/runtime.tar" "$BUILD/runtime-export/runtime.tar"
 test -s "$BUILD/runtime-export/runtime.tar"
 gzip -1 -c "$BUILD/runtime-export/runtime.tar" > "$BUILD/staging/app/runtime.tgz"
+cleanup_container
+trap - EXIT
 cp -a "$ROOT/package/app/wrapper" "$ROOT/package/app/server" "$ROOT/package/app/web" "$ROOT/package/app/ui" "$BUILD/staging/app/"
 tar -C "$BUILD/staging/app" -czf "$BUILD/app.tgz" .
 APP_MD5="$(md5sum "$BUILD/app.tgz" | awk '{print $1}')"
